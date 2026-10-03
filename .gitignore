@@ -6,3 +6,5 @@ env/
 !.env.example
 __pycache__/
 *.py[cod]
+backend/data/documents/*
+!backend/data/documents/.gitkeep
