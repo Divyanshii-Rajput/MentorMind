@@ -3,6 +3,9 @@ from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
+from app.services.pdf_extractor import extract_text_from_pdf
+from app.services.text_processor import clean_text, chunk_text
+
 
 router = APIRouter(
     prefix="/api/documents",
@@ -16,18 +19,18 @@ DOCUMENTS_DIR = Path(__file__).resolve().parents[2] / "data" / "documents"
 # Maximum allowed PDF size: 10 MB.
 MAX_FILE_SIZE = 10 * 1024 * 1024
 
+# Initial chunking configuration.
+CHUNK_SIZE = 1000
+CHUNK_OVERLAP = 200
+
 
 @router.post("/upload")
 async def upload_document(file: UploadFile = File(...)):
     """
-    Upload and save a PDF document.
+    Upload a PDF, extract its text, clean the text, and create chunks.
 
-    This phase only handles:
-    - File validation
-    - File size validation
-    - Local storage
-
-    PDF text extraction will be implemented in Phase 10.
+    Embeddings and vector storage will be implemented
+    in later phases.
     """
 
     # Validate that a file was actually selected.
@@ -46,17 +49,17 @@ async def upload_document(file: UploadFile = File(...)):
             detail="Only PDF files are allowed.",
         )
 
-    # Validate the MIME type when the client provides it.
+    # Validate MIME type when provided by the client.
     if file.content_type not in (None, "application/pdf"):
         raise HTTPException(
             status_code=400,
             detail="Invalid file type. Please upload a PDF file.",
         )
 
-    # Read the uploaded file into memory.
+    # Read the uploaded file.
     file_content = await file.read()
 
-    # Reject empty files.
+    # Reject empty uploads.
     if not file_content:
         raise HTTPException(
             status_code=400,
@@ -73,20 +76,77 @@ async def upload_document(file: UploadFile = File(...)):
     # Make sure the destination directory exists.
     DOCUMENTS_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Generate a unique filename so two uploads cannot overwrite
-    # each other even when their original names are identical.
+    # Generate a unique document ID.
     document_id = str(uuid.uuid4())
+
     stored_filename = f"{document_id}.pdf"
 
     file_path = DOCUMENTS_DIR / stored_filename
 
-    # Save the PDF to disk.
+    # Save the uploaded PDF.
     file_path.write_bytes(file_content)
 
+    # Extract text from the saved PDF.
+    try:
+        extraction_result = extract_text_from_pdf(file_path)
+
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="Uploaded PDF could not be found after saving.",
+        ) from exc
+
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail="Unable to extract text from the uploaded PDF.",
+        ) from exc
+
+    extracted_text = extraction_result["text"]
+
+    # Check whether the PDF actually contained extractable text.
+    if not extracted_text:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "The PDF does not contain extractable text. "
+                "It may be empty or scanned as images."
+            ),
+        )
+
+    # Clean the raw extracted text.
+    cleaned_text = clean_text(extracted_text)
+
+    if not cleaned_text:
+        raise HTTPException(
+            status_code=422,
+            detail="No usable text remained after cleaning the PDF.",
+        )
+
+    # Split cleaned text into overlapping chunks.
+    chunks = chunk_text(
+        cleaned_text,
+        chunk_size=CHUNK_SIZE,
+        chunk_overlap=CHUNK_OVERLAP,
+    )
+
+    if not chunks:
+        raise HTTPException(
+            status_code=422,
+            detail="Unable to create text chunks from the PDF.",
+        )
+
     return {
-        "message": "PDF uploaded successfully.",
+        "message": "PDF processed successfully.",
         "document_id": document_id,
         "original_filename": original_filename,
         "stored_filename": stored_filename,
         "file_size": len(file_content),
+        "page_count": extraction_result["page_count"],
+        "raw_character_count": len(extracted_text),
+        "cleaned_character_count": len(cleaned_text),
+        "chunk_count": len(chunks),
+        "chunk_size": CHUNK_SIZE,
+        "chunk_overlap": CHUNK_OVERLAP,
+        "first_chunk_preview": chunks[0][:1000],
     }
