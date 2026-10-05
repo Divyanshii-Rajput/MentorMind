@@ -3,10 +3,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
-from app.services.embeddings import generate_embeddings
-from app.services.pdf_extractor import extract_text_from_pdf
-from app.services.text_processor import clean_text, chunk_text
-from app.services.vector_store import add_chunks
+from app.services.indexer import index_document
 
 
 router = APIRouter(
@@ -21,22 +18,19 @@ DOCUMENTS_DIR = Path(__file__).resolve().parents[2] / "data" / "documents"
 # Maximum allowed PDF size: 10 MB.
 MAX_FILE_SIZE = 10 * 1024 * 1024
 
-# Initial chunking configuration.
-CHUNK_SIZE = 1000
-CHUNK_OVERLAP = 200
-
 
 @router.post("/upload")
 async def upload_document(file: UploadFile = File(...)):
     """
-    Upload a PDF and process it through the initial RAG pipeline.
+    Upload a PDF and index it into the MentorMind RAG pipeline.
 
-    Current pipeline:
+    Pipeline:
         PDF
-        -> Text Extraction
-        -> Cleaning
-        -> Chunking
-        -> Embeddings
+        -> Save
+        -> Extract
+        -> Clean
+        -> Chunk
+        -> Embed
         -> ChromaDB
     """
 
@@ -87,20 +81,28 @@ async def upload_document(file: UploadFile = File(...)):
     document_id = str(uuid.uuid4())
 
     stored_filename = f"{document_id}.pdf"
-
     file_path = DOCUMENTS_DIR / stored_filename
 
     # Save the uploaded PDF.
     file_path.write_bytes(file_content)
 
-    # Extract text from the PDF.
+    # Index the document.
     try:
-        extraction_result = extract_text_from_pdf(file_path)
+        indexing_result = index_document(
+            file_path=file_path,
+            document_id=document_id,
+        )
 
     except FileNotFoundError as exc:
         raise HTTPException(
             status_code=500,
             detail="Uploaded PDF could not be found after saving.",
+        ) from exc
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=str(exc),
         ) from exc
 
     except RuntimeError as exc:
@@ -109,85 +111,18 @@ async def upload_document(file: UploadFile = File(...)):
             detail="Unable to extract text from the uploaded PDF.",
         ) from exc
 
-    extracted_text = extraction_result["text"]
-
-    # Check whether the PDF contains extractable text.
-    if not extracted_text:
-        raise HTTPException(
-            status_code=422,
-            detail=(
-                "The PDF does not contain extractable text. "
-                "It may be empty or scanned as images."
-            ),
-        )
-
-    # Clean the raw extracted text.
-    cleaned_text = clean_text(extracted_text)
-
-    if not cleaned_text:
-        raise HTTPException(
-            status_code=422,
-            detail="No usable text remained after cleaning the PDF.",
-        )
-
-    # Split cleaned text into overlapping chunks.
-    chunks = chunk_text(
-        cleaned_text,
-        chunk_size=CHUNK_SIZE,
-        chunk_overlap=CHUNK_OVERLAP,
-    )
-
-    if not chunks:
-        raise HTTPException(
-            status_code=422,
-            detail="Unable to create text chunks from the PDF.",
-        )
-
-    # Generate local embeddings for every chunk.
-    embeddings = generate_embeddings(chunks)
-
-    if len(embeddings) != len(chunks):
-        raise HTTPException(
-            status_code=500,
-            detail="Embedding generation returned an unexpected result.",
-        )
-
-    embedding_dimension = len(embeddings[0]) if embeddings else 0
-
-    # Store chunks, embeddings, and metadata in ChromaDB.
-    try:
-        stored_chunk_count = add_chunks(
-            chunks=chunks,
-            embeddings=embeddings,
-            document_id=document_id,
-        )
-
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=500,
-            detail=str(exc),
-        ) from exc
-
     except Exception as exc:
-        print(f"ChromaDB error: {exc}")
+        print(f"Document indexing error: {exc}")
         raise HTTPException(
             status_code=500,
-            detail="Failed to store document chunks in ChromaDB.",
+            detail="Failed to index the uploaded PDF.",
         ) from exc
 
     return {
-        "message": "PDF processed and stored in ChromaDB successfully.",
+        "message": "PDF processed and indexed successfully.",
         "document_id": document_id,
         "original_filename": original_filename,
         "stored_filename": stored_filename,
         "file_size": len(file_content),
-        "page_count": extraction_result["page_count"],
-        "raw_character_count": len(extracted_text),
-        "cleaned_character_count": len(cleaned_text),
-        "chunk_count": len(chunks),
-        "stored_chunk_count": stored_chunk_count,
-        "chunk_size": CHUNK_SIZE,
-        "chunk_overlap": CHUNK_OVERLAP,
-        "embedding_dimension": embedding_dimension,
-        "first_chunk_preview": chunks[0][:1000],
+        **indexing_result,
     }
