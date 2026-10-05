@@ -3,6 +3,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
+from app.services.embeddings import generate_embeddings
 from app.services.pdf_extractor import extract_text_from_pdf
 from app.services.text_processor import clean_text, chunk_text
 
@@ -27,10 +28,16 @@ CHUNK_OVERLAP = 200
 @router.post("/upload")
 async def upload_document(file: UploadFile = File(...)):
     """
-    Upload a PDF, extract its text, clean the text, and create chunks.
+    Upload a PDF and process it through the initial RAG pipeline.
 
-    Embeddings and vector storage will be implemented
-    in later phases.
+    Current pipeline:
+        PDF
+        -> Text Extraction
+        -> Cleaning
+        -> Chunking
+        -> Embeddings
+
+    Vector database storage will be implemented in Phase 13.
     """
 
     # Validate that a file was actually selected.
@@ -86,7 +93,7 @@ async def upload_document(file: UploadFile = File(...)):
     # Save the uploaded PDF.
     file_path.write_bytes(file_content)
 
-    # Extract text from the saved PDF.
+    # Extract text from the PDF.
     try:
         extraction_result = extract_text_from_pdf(file_path)
 
@@ -104,7 +111,7 @@ async def upload_document(file: UploadFile = File(...)):
 
     extracted_text = extraction_result["text"]
 
-    # Check whether the PDF actually contained extractable text.
+    # Check whether the PDF contains extractable text.
     if not extracted_text:
         raise HTTPException(
             status_code=422,
@@ -136,8 +143,19 @@ async def upload_document(file: UploadFile = File(...)):
             detail="Unable to create text chunks from the PDF.",
         )
 
+    # Generate local embeddings for every chunk.
+    embeddings = generate_embeddings(chunks)
+
+    if len(embeddings) != len(chunks):
+        raise HTTPException(
+            status_code=500,
+            detail="Embedding generation returned an unexpected result.",
+        )
+
+    embedding_dimension = len(embeddings[0]) if embeddings else 0
+
     return {
-        "message": "PDF processed successfully.",
+        "message": "PDF processed and embeddings generated successfully.",
         "document_id": document_id,
         "original_filename": original_filename,
         "stored_filename": stored_filename,
@@ -148,5 +166,6 @@ async def upload_document(file: UploadFile = File(...)):
         "chunk_count": len(chunks),
         "chunk_size": CHUNK_SIZE,
         "chunk_overlap": CHUNK_OVERLAP,
+        "embedding_dimension": embedding_dimension,
         "first_chunk_preview": chunks[0][:1000],
     }
