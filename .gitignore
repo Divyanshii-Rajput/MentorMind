@@ -8,3 +8,6 @@ __pycache__/
 *.py[cod]
 backend/data/documents/*
 !backend/data/documents/.gitkeep
+# ChromaDB
+chroma_db/
+backend/chroma_db/

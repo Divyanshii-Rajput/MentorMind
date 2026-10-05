@@ -6,6 +6,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from app.services.embeddings import generate_embeddings
 from app.services.pdf_extractor import extract_text_from_pdf
 from app.services.text_processor import clean_text, chunk_text
+from app.services.vector_store import add_chunks
 
 
 router = APIRouter(
@@ -36,8 +37,7 @@ async def upload_document(file: UploadFile = File(...)):
         -> Cleaning
         -> Chunking
         -> Embeddings
-
-    Vector database storage will be implemented in Phase 13.
+        -> ChromaDB
     """
 
     # Validate that a file was actually selected.
@@ -154,8 +154,29 @@ async def upload_document(file: UploadFile = File(...)):
 
     embedding_dimension = len(embeddings[0]) if embeddings else 0
 
+    # Store chunks, embeddings, and metadata in ChromaDB.
+    try:
+        stored_chunk_count = add_chunks(
+            chunks=chunks,
+            embeddings=embeddings,
+            document_id=document_id,
+        )
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=str(exc),
+        ) from exc
+
+    except Exception as exc:
+        print(f"ChromaDB error: {exc}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to store document chunks in ChromaDB.",
+        ) from exc
+
     return {
-        "message": "PDF processed and embeddings generated successfully.",
+        "message": "PDF processed and stored in ChromaDB successfully.",
         "document_id": document_id,
         "original_filename": original_filename,
         "stored_filename": stored_filename,
@@ -164,6 +185,7 @@ async def upload_document(file: UploadFile = File(...)):
         "raw_character_count": len(extracted_text),
         "cleaned_character_count": len(cleaned_text),
         "chunk_count": len(chunks),
+        "stored_chunk_count": stored_chunk_count,
         "chunk_size": CHUNK_SIZE,
         "chunk_overlap": CHUNK_OVERLAP,
         "embedding_dimension": embedding_dimension,
