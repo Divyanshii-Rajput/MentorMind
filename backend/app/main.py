@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.routes.ai import router as ai_router
 from app.routes.documents import router as documents_router
-
+from app.routes.rag import router as rag_router
 
 app = FastAPI(
     title="MentorMind API",
@@ -27,7 +27,7 @@ app.add_middleware(
 # Register API routes.
 app.include_router(ai_router)
 app.include_router(documents_router)
-
+app.include_router(rag_router)
 
 @app.get("/api/health")
 async def health_check():
