@@ -12,6 +12,12 @@ router = APIRouter(
 )
 
 
+class Misconception(BaseModel):
+    concept: str
+    category: str
+    explanation: str
+
+
 class EvaluationRequest(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
     student_answer: str = Field(min_length=1, max_length=5000)
@@ -23,11 +29,15 @@ class EvaluationResponse(BaseModel):
     evaluation: str
     feedback: str
     missing_concepts: list[str]
+    misconceptions: list[Misconception]
     hint: str
     sources: list[dict]
 
 
-@router.post("/evaluate", response_model=EvaluationResponse)
+@router.post(
+    "/evaluate",
+    response_model=EvaluationResponse,
+)
 async def evaluate_answer(request: EvaluationRequest):
 
     question = request.question.strip()
