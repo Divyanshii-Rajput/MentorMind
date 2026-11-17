@@ -5,6 +5,7 @@ from app.routes.ai import router as ai_router
 from app.routes.documents import router as documents_router
 from app.routes.rag import router as rag_router
 from app.routes.socratic import router as socratic_router
+from app.routes.evaluation import router as evaluation_router
 
 app = FastAPI(
     title="MentorMind API",
@@ -30,6 +31,7 @@ app.include_router(ai_router)
 app.include_router(documents_router)
 app.include_router(rag_router)
 app.include_router(socratic_router)
+app.include_router(evaluation_router)
 
 @app.get("/api/health")
 async def health_check():

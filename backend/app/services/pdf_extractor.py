@@ -1,6 +1,6 @@
 from pathlib import Path
 
-import fitz
+import pymupdf
 
 
 def extract_text_from_pdf(file_path: Path) -> dict:
@@ -20,7 +20,7 @@ def extract_text_from_pdf(file_path: Path) -> dict:
         )
 
     try:
-        document = fitz.open(file_path)
+        document = pymupdf.open(file_path)
 
         page_texts = []
 
