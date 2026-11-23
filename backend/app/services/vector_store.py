@@ -20,6 +20,7 @@ def add_chunks(
     chunks: list[str],
     embeddings: list[list[float]],
     document_id: str,
+    owner_email: str,
 ) -> int:
     """Store document chunks and their embeddings in ChromaDB."""
 
@@ -43,6 +44,7 @@ def add_chunks(
         {
             "document_id": document_id,
             "chunk_index": index,
+            "owner_email": owner_email.lower(),
         }
         for index in range(len(chunks))
     ]
@@ -60,6 +62,7 @@ def search_similar_chunks(
     query_embedding: list[float],
     top_k: int = 5,
     document_id: str | None = None,
+    owner_email: str | None = None,
 ) -> list[dict]:
     """
     Search ChromaDB for chunks most similar to the query embedding.
@@ -78,13 +81,14 @@ def search_similar_chunks(
     if total_chunks == 0:
         return []
 
-    # Build an optional document filter.
-    where_filter = None
+    # Every retrieval is scoped to the authenticated owner.
+    if not owner_email:
+        raise ValueError("An authenticated document owner is required.")
 
+    filters = [{"owner_email": owner_email.lower()}]
     if document_id:
-        where_filter = {
-            "document_id": document_id,
-        }
+        filters.append({"document_id": document_id})
+    where_filter = filters[0] if len(filters) == 1 else {"$and": filters}
 
     # Do not request more results than are available.
     top_k = min(top_k, total_chunks)

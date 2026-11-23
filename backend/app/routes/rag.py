@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from app.services.rag import answer_question
@@ -31,7 +31,7 @@ class RAGResponse(BaseModel):
 
 
 @router.post("/ask", response_model=RAGResponse)
-async def ask_question(request: RAGRequest):
+async def ask_question(request: RAGRequest, http_request: Request):
     """
     Ask a question using the RAG pipeline.
     """
@@ -49,6 +49,7 @@ async def ask_question(request: RAGRequest):
             question=question,
             document_id=request.document_id,
             top_k=request.top_k,
+            owner_email=http_request.state.current_user["email"],
         )
 
         return RAGResponse(**result)
@@ -60,7 +61,8 @@ async def ask_question(request: RAGRequest):
         ) from exc
 
     except Exception as exc:
-        print(f"RAG error: {exc}")
+        import logging
+        logging.getLogger("mentormind.rag").exception("RAG generation failed")
 
         raise HTTPException(
             status_code=502,

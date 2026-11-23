@@ -42,7 +42,8 @@ async def test_ai(request: AIRequest):
 
     except Exception as exc:
         # Log the actual error on the backend.
-        print(f"Gemini API error: {exc}")
+        import logging
+        logging.getLogger("mentormind.ai").exception("Gemini API request failed")
 
         # Do not expose internal API errors to the frontend.
         raise HTTPException(

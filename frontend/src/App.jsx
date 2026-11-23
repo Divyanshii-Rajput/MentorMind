@@ -1,41 +1,34 @@
+
+import { Routes, Route } from 'react-router-dom'
+
+import Home from './pages/Home'
+import Login from './pages/Login'
+import Register from './pages/Register'
+import Dashboard from './pages/Dashboard'
+import Tutor from './pages/Tutor'
+import Documents from './pages/Documents'
+import Quiz from './pages/Quiz'
+import StudyPlanner from './pages/StudyPlanner'
+import StudySessions from './pages/StudySessions'
+import Analytics from './pages/Analytics'
+import ProtectedRoute from './components/ProtectedRoute'
+
 function App() {
   return (
-    <div className="min-h-screen bg-slate-50">
-      <main className="flex min-h-screen items-center justify-center px-6 py-12">
-        <section className="w-full max-w-3xl rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
-          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-600 text-2xl font-bold text-white">
-            M
-          </div>
-
-          <p className="mb-3 text-sm font-semibold uppercase tracking-widest text-indigo-600">
-            MentorMind
-          </p>
-
-          <h1 className="text-4xl font-bold tracking-tight text-slate-900">
-            The AI That Teaches Like a Human
-          </h1>
-
-          <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-slate-600">
-            Learn through questions, hints, and guided thinking instead of
-            simply receiving the answer.
-          </p>
-
-          <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <span className="rounded-full bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700">
-              RAG
-            </span>
-
-            <span className="rounded-full bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700">
-              Socratic Learning
-            </span>
-
-            <span className="rounded-full bg-amber-50 px-4 py-2 text-sm font-medium text-amber-700">
-              Personalized AI
-            </span>
-          </div>
-        </section>
-      </main>
-    </div>
+    <Routes>
+      <Route path="/" element={<Home />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+      <Route element={<ProtectedRoute />}>
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/tutor" element={<Tutor />} />
+        <Route path="/documents" element={<Documents />} />
+        <Route path="/quiz" element={<Quiz />} />
+        <Route path="/study-planner" element={<StudyPlanner />} />
+        <Route path="/study-sessions" element={<StudySessions />} />
+        <Route path="/analytics" element={<Analytics />} />
+      </Route>
+    </Routes>
   )
 }
 

@@ -1,7 +1,7 @@
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, HTTPException, UploadFile, Request
 
 from app.services.indexer import index_document
 
@@ -20,7 +20,7 @@ MAX_FILE_SIZE = 10 * 1024 * 1024
 
 
 @router.post("/upload")
-async def upload_document(file: UploadFile = File(...)):
+async def upload_document(http_request: Request, file: UploadFile = File(...)):
     """
     Upload a PDF and index it into the MentorMind RAG pipeline.
 
@@ -57,8 +57,8 @@ async def upload_document(file: UploadFile = File(...)):
             detail="Invalid file type. Please upload a PDF file.",
         )
 
-    # Read the uploaded file.
-    file_content = await file.read()
+    # Read at most MAX_FILE_SIZE + 1 bytes to avoid unbounded memory use.
+    file_content = await file.read(MAX_FILE_SIZE + 1)
 
     # Reject empty uploads.
     if not file_content:
@@ -73,6 +73,15 @@ async def upload_document(file: UploadFile = File(...)):
             status_code=413,
             detail="PDF file size must not exceed 10 MB.",
         )
+
+    # Verify the file signature; extension and MIME type alone are not trustworthy.
+    if b"%PDF-" not in file_content[:1024]:
+        raise HTTPException(status_code=400, detail="The uploaded file is not a valid PDF.")
+
+    if http_request is None or not hasattr(http_request.state, "current_user"):
+        raise HTTPException(status_code=401, detail="Authentication required.")
+
+    owner_email = http_request.state.current_user["email"].lower()
 
     # Make sure the destination directory exists.
     DOCUMENTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -91,32 +100,41 @@ async def upload_document(file: UploadFile = File(...)):
         indexing_result = index_document(
             file_path=file_path,
             document_id=document_id,
+            owner_email=owner_email,
         )
 
     except FileNotFoundError as exc:
+        file_path.unlink(missing_ok=True)
         raise HTTPException(
             status_code=500,
             detail="Uploaded PDF could not be found after saving.",
         ) from exc
 
     except ValueError as exc:
+        file_path.unlink(missing_ok=True)
         raise HTTPException(
             status_code=422,
             detail=str(exc),
         ) from exc
 
     except RuntimeError as exc:
+        file_path.unlink(missing_ok=True)
         raise HTTPException(
             status_code=422,
             detail="Unable to extract text from the uploaded PDF.",
         ) from exc
 
     except Exception as exc:
-        print(f"Document indexing error: {exc}")
+        import logging
+        logging.getLogger("mentormind.documents").exception("Document indexing failed")
+        file_path.unlink(missing_ok=True)
         raise HTTPException(
             status_code=500,
             detail="Failed to index the uploaded PDF.",
         ) from exc
+
+    # Never return extracted document text in an upload response.
+    indexing_result.pop("first_chunk_preview", None)
 
     return {
         "message": "PDF processed and indexed successfully.",

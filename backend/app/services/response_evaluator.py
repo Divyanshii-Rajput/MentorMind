@@ -18,6 +18,7 @@ async def evaluate_student_response(
     student_answer: str,
     document_id: str | None = None,
     top_k: int = DEFAULT_TOP_K,
+    owner_email: str | None = None,
 ) -> dict:
 
     question = question.strip()
@@ -37,6 +38,7 @@ async def evaluate_student_response(
         query_embedding=query_embedding,
         top_k=top_k,
         document_id=document_id,
+        owner_email=owner_email,
     )
 
     if not retrieved_chunks:

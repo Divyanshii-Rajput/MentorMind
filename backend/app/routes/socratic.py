@@ -1,5 +1,5 @@
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from app.services.socratic import start_socratic_session
@@ -19,7 +19,7 @@ class SocraticResponse(BaseModel):
     sources: list[dict]
 
 @router.post("/start", response_model=SocraticResponse)
-async def start_session(request: SocraticRequest):
+async def start_session(request: SocraticRequest, http_request: Request):
 
     question = request.question.strip()
 
@@ -34,6 +34,7 @@ async def start_session(request: SocraticRequest):
             question=question,
             document_id=request.document_id,
             top_k=request.top_k,
+            owner_email=http_request.state.current_user["email"],
         )
 
         return SocraticResponse(**result)
@@ -45,7 +46,8 @@ async def start_session(request: SocraticRequest):
         ) from exc
 
     except Exception as exc:
-        print(f"Socratic tutor error: {exc}")
+        import logging
+        logging.getLogger("mentormind.socratic").exception("Socratic tutor failed")
 
         raise HTTPException(
             status_code=502,

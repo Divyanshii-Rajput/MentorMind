@@ -1,3 +1,4 @@
+
 @import "tailwindcss";
 
 :root {
@@ -11,7 +12,7 @@
     sans-serif;
 
   color: #172033;
-  background: #f8fafc;
+  background: #ffffff;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -22,7 +23,10 @@
   box-sizing: border-box;
 }
 
-html,
+html {
+  scroll-behavior: smooth;
+}
+
 body,
 #root {
   min-height: 100%;

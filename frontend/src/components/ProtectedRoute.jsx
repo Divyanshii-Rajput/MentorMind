@@ -1,0 +1,8 @@
+import { Navigate, Outlet } from "react-router-dom";
+
+function ProtectedRoute() {
+  const token = sessionStorage.getItem("mentormind_access_token");
+  return token ? <Outlet /> : <Navigate to="/login" replace />;
+}
+
+export default ProtectedRoute;

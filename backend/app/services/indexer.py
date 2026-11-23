@@ -14,6 +14,7 @@ CHUNK_OVERLAP = 200
 def index_document(
     file_path: Path,
     document_id: str,
+    owner_email: str,
 ) -> dict:
     """
     Process a PDF and index its chunks in ChromaDB.
@@ -76,6 +77,7 @@ def index_document(
         chunks=chunks,
         embeddings=embeddings,
         document_id=document_id,
+        owner_email=owner_email,
     )
 
     return {
