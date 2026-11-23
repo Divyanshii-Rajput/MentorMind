@@ -3,9 +3,19 @@ from pathlib import Path
 import chromadb
 
 
-BASE_DIR = Path(__file__).resolve().parents[2]
-CHROMA_PATH = BASE_DIR / "chroma_db"
+import os
+from pathlib import Path
 
+import chromadb
+
+
+BASE_DIR = Path(__file__).resolve().parents[2]
+
+CHROMA_PATH = Path(
+    os.getenv("CHROMA_PERSIST_DIR", str(BASE_DIR / "chroma_db"))
+)
+
+CHROMA_PATH.mkdir(parents=True, exist_ok=True)
 COLLECTION_NAME = "mentormind_documents"
 
 

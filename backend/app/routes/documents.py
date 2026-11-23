@@ -1,3 +1,4 @@
+import os
 import uuid
 from pathlib import Path
 
@@ -13,8 +14,14 @@ router = APIRouter(
 
 
 # Directory where uploaded PDFs are stored during development.
-DOCUMENTS_DIR = Path(__file__).resolve().parents[2] / "data" / "documents"
+BASE_DIR = Path(__file__).resolve().parents[2]
 
+DOCUMENTS_DIR = Path(
+    os.getenv(
+        "DOCUMENTS_DIR",
+        str(BASE_DIR / "data" / "documents")
+    )
+)
 # Maximum allowed PDF size: 10 MB.
 MAX_FILE_SIZE = 10 * 1024 * 1024
 
