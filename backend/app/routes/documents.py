@@ -49,7 +49,9 @@ async def upload_document(http_request: Request, file: UploadFile = File(...)):
         )
 
     original_filename = Path(file.filename).name
-
+    print("\n[UPLOAD] New PDF received", flush=True)
+    print(f"[UPLOAD] Filename: {original_filename}", flush=True)
+    
     # Validate file extension.
     if Path(original_filename).suffix.lower() != ".pdf":
         raise HTTPException(
@@ -101,15 +103,18 @@ async def upload_document(http_request: Request, file: UploadFile = File(...)):
 
     # Save the uploaded PDF.
     file_path.write_bytes(file_content)
-
+    print("[UPLOAD] PDF saved successfully.", flush=True)
+    print(f"[UPLOAD] File size: {len(file_content)} bytes", flush=True)
+    
     # Index the document.
     try:
+        print("[UPLOAD] Starting document indexing...", flush=True)
         indexing_result = index_document(
             file_path=file_path,
             document_id=document_id,
             owner_email=owner_email,
         )
-
+        print("[UPLOAD] PDF uploaded and indexed successfully.", flush=True)
     except FileNotFoundError as exc:
         file_path.unlink(missing_ok=True)
         raise HTTPException(
